@@ -16,7 +16,7 @@ The following should be available on the machine/vm where the code is run:
 - Postgresql with "news" database
 - Python 2.7
 - psycopg2 python library
-- "SuccessfulllyReadArticlesView" view inside the "news" database. Sql to create the view is as follows:
+- "SuccessfulllyReadArticlesView" view under the "news" database. Sql to create the view is as follows:
 
 CREATE VIEW SuccessfulllyReadArticlesView
 (slug, method, status, id)
