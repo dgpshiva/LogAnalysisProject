@@ -5,9 +5,30 @@ import psycopg2
 dbName = "news"
 
 
+def execute_query(query):
+    """execute_query takes an SQL query as a parameter,
+        executes the query and returns the results as a list of tuples.
+        args:
+            query - (string) an SQL query statement to be executed.
+
+        returns:
+            A list of tuples containing the results of the query.
+    """
+    try:
+        conn = psycopg2.connect(database=dbName)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        result = cursor.fetchall()
+        conn.close()
+        return result
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+
+
 def getTopThreeMostPopularArticles():
-    conn = psycopg2.connect(database=dbName)
-    cursor = conn.cursor()
+    """Prints to console the top three most viewed articles from the news database.
+       The articles are displayed in descending order of their popularity.
+    """
     query = '''
         SELECT title, count(*) AS NumberOfViews
         FROM articles
@@ -17,20 +38,19 @@ def getTopThreeMostPopularArticles():
         ORDER BY NumberOfViews DESC
         LIMIT 3;
             '''
-    cursor.execute(query)
-    rows = cursor.fetchall()
+    rows = execute_query(query)
     print "Top Three Most Popular Articles:"
-    for row in rows:
-        print "\"" + str(row[0]) + "\" - " + str(row[1]) + " views"
+    for title, NumberOfViews in rows:
+        print('{0:<35} - {1:>12} views'.format(title, NumberOfViews))
     print "\n"
-    conn.close()
 
 
 def mostPopularArticleAuthors():
-    conn = psycopg2.connect(database=dbName)
-    cursor = conn.cursor()
+    """Prints to console the authors and the number of views their articles got.
+       The authors are displayed in descending order of the number of views.
+    """
     query = '''
-        SELECT authors.name,
+        SELECT authors.name AS name,
         sum(TitleAndNumberOfViews.NumberOfViews)
         AS TotalViewPerAuthor
         FROM authors
@@ -48,54 +68,38 @@ def mostPopularArticleAuthors():
         GROUP BY authors.name
         ORDER BY TotalViewPerAuthor DESC;
             '''
-    cursor.execute(query)
-    rows = cursor.fetchall()
+    rows = execute_query(query)
     print "Most Popular Article Authors:"
-    for row in rows:
-        print str(row[0]) + " - " + str(row[1]) + " views"
+    for name, TotalViewPerAuthor in rows:
+        print('{0:<30} - {1:>12} views'.format(name, TotalViewPerAuthor))
     print "\n"
-    conn.close()
 
 
 def lotOfErrorsDays():
-    conn = psycopg2.connect(database=dbName)
-    cursor = conn.cursor()
+    """Prints to console the days on which
+       more than 1% of requests lead to errors.
+    """
     query = '''
-        SELECT
-        to_char(dateAndTotalCounts.theDate, 'Mon DD, YYYY'),
-        (CAST (errorCounts AS FLOAT)/CAST(totalCounts AS FLOAT)) * 100
-        AS errorPercentage
-        FROM
-        (
-            SELECT time::timestamp::date AS theDate,
-                    count(*) AS errorCounts
-            FROM log
-            WHERE status != '200 OK'
-            GROUP BY time::timestamp::date
-        ) AS dateAndErrorCounts
-        INNER JOIN
-        (
-            SELECT time::timestamp::date AS theDate, count(*)
-            AS totalCounts
-            FROM log
-            GROUP BY time::timestamp::date
-        ) AS dateAndTotalCounts
-        ON dateAndErrorCounts.theDate = dateAndTotalCounts.theDate
-        WHERE
-        (CAST (errorCounts AS FLOAT)/CAST(totalCounts AS FLOAT))*100 > 1
-        ORDER BY
-        (CAST (errorCounts AS FLOAT)/CAST(totalCounts AS FLOAT))*100 DESC,
-        dateAndTotalCounts.theDate;
+        SELECT to_char(date, 'FMMonth DD, YYYY'),
+        ROUND(errorPercentage, 2)
+        FROM(
+            SELECT time::date AS date,
+            100 * (COUNT(*) FILTER (WHERE status = '404 NOT FOUND') /
+            COUNT(*)::numeric) AS errorPercentage
+        FROM log
+        GROUP BY time::date
+            ) s
+        WHERE errorPercentage > 1
+        ORDER BY errorPercentage, date;
             '''
-    cursor.execute(query)
-    rows = cursor.fetchall()
+    rows = execute_query(query)
     print "Days with error rate greater than 1%:"
-    for row in rows:
-        print str(row[0]) + " - " + str(row[1]) + "% errors"
+    for errorDate, errorPercentage in rows:
+        print('{0:<30} - {1:>12} %'.format(errorDate, errorPercentage))
     print "\n"
-    conn.close()
 
 
-getTopThreeMostPopularArticles()
-mostPopularArticleAuthors()
-lotOfErrorsDays()
+if __name__ == '__main__':
+    getTopThreeMostPopularArticles()
+    mostPopularArticleAuthors()
+    lotOfErrorsDays()
