@@ -30,13 +30,15 @@ def getTopThreeMostPopularArticles():
        The articles are displayed in descending order of their popularity.
     """
     query = '''
-        SELECT title, count(*) AS NumberOfViews
-        FROM articles
-        INNER JOIN SuccessfulllyReadArticlesView
-        ON articles.slug = SuccessfulllyReadArticlesView.slug
-        GROUP BY title
-        ORDER BY NumberOfViews DESC
-        LIMIT 3;
+                SELECT title, views
+                FROM articles
+                INNER JOIN
+                    (SELECT path, count(path) AS views
+                    FROM log
+                    GROUP BY log.path) AS log
+                ON log.path = '/article/' || articles.slug
+                ORDER BY views DESC
+                LIMIT 3;
             '''
     rows = execute_query(query)
     print "Top Three Most Popular Articles:"
@@ -50,23 +52,25 @@ def mostPopularArticleAuthors():
        The authors are displayed in descending order of the number of views.
     """
     query = '''
-        SELECT authors.name AS name,
-        sum(TitleAndNumberOfViews.NumberOfViews)
-        AS TotalViewPerAuthor
-        FROM authors
-        INNER JOIN articles
-        ON authors.id = articles.author
-        INNER JOIN
-        (
-            SELECT title, count(*) AS NumberOfViews
-            FROM articles
-            INNER JOIN SuccessfulllyReadArticlesView
-            ON articles.slug = SuccessfulllyReadArticlesView.slug
-            GROUP BY title
-        ) AS TitleAndNumberOfViews
-        ON articles.title = TitleAndNumberOfViews.title
-        GROUP BY authors.name
-        ORDER BY TotalViewPerAuthor DESC;
+                SELECT authors.name AS name,
+                sum(TitleAndNumberOfViews.views)
+                AS TotalViewPerAuthor
+                FROM authors
+                INNER JOIN articles
+                ON authors.id = articles.author
+                INNER JOIN
+                (
+                    SELECT title, views
+                    FROM articles
+                    INNER JOIN
+                        (SELECT path, count(path) AS views
+                            FROM log
+                            GROUP BY log.path) AS log
+                        ON log.path = '/article/' || articles.slug
+                ) AS TitleAndNumberOfViews
+                ON articles.title = TitleAndNumberOfViews.title
+                GROUP BY authors.name
+                ORDER BY TotalViewPerAuthor DESC;
             '''
     rows = execute_query(query)
     print "Most Popular Article Authors:"
@@ -80,17 +84,17 @@ def lotOfErrorsDays():
        more than 1% of requests lead to errors.
     """
     query = '''
-        SELECT to_char(date, 'FMMonth DD, YYYY'),
-        ROUND(errorPercentage, 2)
-        FROM(
-            SELECT time::date AS date,
-            100 * (COUNT(*) FILTER (WHERE status = '404 NOT FOUND') /
-            COUNT(*)::numeric) AS errorPercentage
-        FROM log
-        GROUP BY time::date
-            ) s
-        WHERE errorPercentage > 1
-        ORDER BY errorPercentage, date;
+                SELECT to_char(date, 'FMMonth DD, YYYY'),
+                ROUND(errorPercentage, 2)
+                FROM(
+                    SELECT time::date AS date,
+                    100 * (COUNT(*) FILTER (WHERE status = '404 NOT FOUND') /
+                    COUNT(*)::numeric) AS errorPercentage
+                FROM log
+                GROUP BY time::date
+                    ) s
+                WHERE errorPercentage > 1
+                ORDER BY errorPercentage, date;
             '''
     rows = execute_query(query)
     print "Days with error rate greater than 1%:"
